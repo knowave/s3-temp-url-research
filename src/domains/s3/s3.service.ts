@@ -1,10 +1,12 @@
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import 'multer';
@@ -39,32 +41,22 @@ export class S3Service {
       Body: file.buffer,
       ContentType: file.mimetype,
       ACL: 'public-read',
-      Expires: new Date(Date.now() + 15 * 60 * 1000),
     });
 
     await this.s3Client.send(command);
 
     const tempImageUrl = `https://${this.bucketName}.s3.${this.configService.get('AWS_REGION')}.amazonaws.com/${key}`;
 
-    return tempImageUrl;
-  }
+    const getCommand = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
 
-  // 임시 객체 확인
-  async validateTempUrl(tempImageUrl: string) {
-    try {
-      const key = tempImageUrl;
-      if (!key.startsWith(this.tempPreFix)) return false;
+    const presignedUrl = await getSignedUrl(this.s3Client, getCommand, {
+      expiresIn: 60, // 1분
+    });
 
-      const command = new HeadObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
-
-      await this.s3Client.send(command);
-      return true;
-    } catch (error) {
-      throw new Error(`Invalid temp image URL: ${error}`);
-    }
+    return { tempImageUrl, presignedUrl };
   }
 
   // 임시 객체에서 영구 객체로 변환
@@ -74,7 +66,7 @@ export class S3Service {
     if (!tempKey.startsWith(this.tempPreFix))
       throw new BadRequestException('Invalid temporary image URL');
 
-    const exists = await this.validateTempUrl(tempImageUrl);
+    const exists = await this.validateTempUrl(tempKey);
     if (!exists) throw new BadRequestException('Temporary image not found');
 
     const fileExtension = tempKey.split('.').pop() || 'bin';
@@ -98,6 +90,23 @@ export class S3Service {
     const permanentImageUrl = `https://${this.bucketName}.s3.${this.configService.get('AWS_REGION')}.amazonaws.com/${permanentKey}`;
 
     return permanentImageUrl;
+  }
+
+  private async validateTempUrl(tempImageUrl: string) {
+    try {
+      const key = tempImageUrl;
+      if (!key.startsWith(this.tempPreFix)) return false;
+
+      const command = new HeadObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      await this.s3Client.send(command);
+      return true;
+    } catch (error) {
+      throw new Error(`Invalid temp image URL: ${error}`);
+    }
   }
 
   private extractKeyFromUrl(url: string): string {

@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
-import { S3Module } from './s3/s3.module';
-import { UploadModule } from './upload/upload.module';
+import { ImageModule } from './domains/image/image.module';
+import { S3Module } from './domains/s3/s3.module';
+import { UploadModule } from './domains/upload/upload.module';
 
 @Module({
   imports: [
@@ -15,8 +14,7 @@ import { UploadModule } from './upload/upload.module';
     DatabaseModule,
     S3Module,
     UploadModule,
+    ImageModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 
 @Entity({ name: 'images' })
-export class Image {
+export class ImageEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
