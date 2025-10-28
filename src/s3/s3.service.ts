@@ -5,9 +5,9 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import 'multer';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -29,23 +29,24 @@ export class S3Service {
   }
 
   // 임시 객체 생성
-  async generateTempUrl(fileExtension: string) {
+  async uploadTempImage(file: Express.Multer.File) {
+    const fileExtension = file.originalname.split('.').pop() || 'bin';
     const key = `${this.tempPreFix}${uuidv4()}.${fileExtension}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucketName,
       Key: key,
-      ContentType: this.getContentType(fileExtension),
+      Body: file.buffer,
+      ContentType: file.mimetype,
       ACL: 'public-read',
+      Expires: new Date(Date.now() + 15 * 60 * 1000),
     });
 
-    const uploadUrl = await getSignedUrl(this.s3Client, command, {
-      expiresIn: 15 * 60, // 15분 동안 유효
-    });
+    await this.s3Client.send(command);
 
     const tempImageUrl = `https://${this.bucketName}.s3.${this.configService.get('AWS_REGION')}.amazonaws.com/${key}`;
 
-    return { uploadUrl, tempImageUrl };
+    return tempImageUrl;
   }
 
   // 임시 객체 확인
@@ -76,7 +77,7 @@ export class S3Service {
     const exists = await this.validateTempUrl(tempImageUrl);
     if (!exists) throw new BadRequestException('Temporary image not found');
 
-    const fileExtension = tempKey.split('.').pop();
+    const fileExtension = tempKey.split('.').pop() || 'bin';
     const permanentKey = `${this.permanentPreFix}${uuidv4()}.${fileExtension}`;
 
     await this.s3Client.send(

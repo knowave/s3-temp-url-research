@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { S3Module } from './s3/s3.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { S3Module } from './s3/s3.module';
     }),
     DatabaseModule,
     S3Module,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],
